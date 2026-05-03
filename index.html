@@ -477,6 +477,13 @@ function showBar(msg) {
 
 if (Notification.permission === 'granted') document.getElementById('notif-btn').style.display = 'none';
 setInterval(render, 60000);
+  // Handle email confirmation redirect
+const hash = window.location.hash;
+if (hash.includes('access_token') && hash.includes('type=signup')) {
+  // Supabase JS auto-signs them in from the hash
+  // Just clean up the URL so it looks nice
+  history.replaceState(null, '', window.location.pathname);
+}
 </script>
 </body>
 </html>
