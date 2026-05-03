@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Tasks</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg: #f7f6f3;
+      --surface: #ffffff;
+      --border: #e8e6e0;
+      --border-hover: #ccc;
+      --text: #1a1a1a;
+      --text-muted: #888;
+      --text-faint: #bbb;
+      --accent: #1a1a1a;
+      --red: #c0392b;
+      --red-bg: #fdf0ef;
+      --amber: #b45309;
+      --amber-bg: #fffbeb;
+      --blue: #1d4ed8;
+      --blue-bg: #eff6ff;
+      --green: #166534;
+      --green-bg: #f0fdf4;
+      --purple: #5b21b6;
+      --purple-bg: #f5f3ff;
+      --radius: 10px;
+      --radius-sm: 6px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111;
+        --surface: #1c1c1e;
+        --border: #2c2c2e;
+        --border-hover: #3a3a3c;
+        --text: #f2f2f7;
+        --text-muted: #8e8e93;
+        --text-faint: #48484a;
+        --red-bg: #2c1010;
+        --amber-bg: #1f1500;
+        --blue-bg: #0a1628;
+        --green-bg: #0a1f0e;
+        --purple-bg: #1a0f2e;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    a { color: inherit; }
+
+    /* Auth */
+    #auth-screen { max-width: 380px; margin: 80px auto; padding: 0 1rem; }
+    .auth-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 2rem; }
+    .auth-title { font-size: 22px; font-weight: 600; margin-bottom: 0.25rem; }
+    .auth-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 1.5rem; }
+    .auth-tabs { display: flex; gap: 0; margin-bottom: 1.5rem; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+    .auth-tab { flex: 1; padding: 8px; font-size: 13px; text-align: center; cursor: pointer; background: none; border: none; color: var(--text-muted); }
+    .auth-tab.active { background: var(--text); color: var(--bg); font-weight: 500; }
+    .field { margin-bottom: 1rem; }
+    .field label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+    .field input { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); font-size: 14px; outline: none; }
+    .field input:focus { border-color: var(--text); }
+    .btn-primary { width: 100%; padding: 10px; background: var(--text); color: var(--bg); border: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 500; cursor: pointer; }
+    .btn-primary:hover { opacity: 0.85; }
+    .auth-error { font-size: 12px; color: var(--red); margin-top: 0.5rem; min-height: 16px; }
+
+    /* App */
+    #app-screen { display: none; max-width: 720px; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+    .top-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
+    .app-title { font-size: 22px; font-weight: 600; }
+    .top-right { display: flex; align-items: center; gap: 10px; }
+    .user-pill { font-size: 12px; color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 4px 10px; }
+    .btn-sm { font-size: 12px; padding: 5px 12px; border: 1px solid var(--border); border-radius: 20px; background: none; cursor: pointer; color: var(--text-muted); }
+    .btn-sm:hover { border-color: var(--border-hover); color: var(--text); }
+
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 1.5rem; }
+    .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; }
+    .stat-label { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+    .stat-val { font-size: 24px; font-weight: 600; }
+    .stat-val.red { color: var(--red); }
+    .stat-val.amber { color: var(--amber); }
+    .stat-val.green { color: var(--green); }
+
+    .add-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; margin-bottom: 1.5rem; }
+    .add-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
+    .add-field { display: flex; flex-direction: column; gap: 4px; }
+    .add-field label { font-size: 11px; color: var(--text-muted); }
+    .add-field input, .add-field select { font-size: 13px; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); outline: none; }
+    .add-field input:focus, .add-field select:focus { border-color: var(--text); }
+    .add-field.grow { flex: 1; min-width: 160px; }
+    .btn-add { padding: 7px 18px; background: var(--text); color: var(--bg); border: none; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; height: 34px; }
+    .btn-add:hover { opacity: 0.85; }
+    .btn-add:disabled { opacity: 0.4; cursor: default; }
+
+    .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 1rem; overflow-x: auto; }
+    .tab { padding: 8px 14px; font-size: 13px; color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; background: none; border-top: none; border-left: none; border-right: none; }
+    .tab.active { color: var(--text); font-weight: 500; border-bottom-color: var(--text); }
+
+    .section-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin: 1rem 0 0.5rem; }
+    .todo-list { display: flex; flex-direction: column; gap: 6px; }
+    .todo { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 11px 14px; display: flex; align-items: flex-start; gap: 10px; transition: opacity 0.2s; position: relative; }
+    .todo.done { opacity: 0.45; }
+    .todo.overdue { border-left: 3px solid var(--red); }
+    .todo.spillover { border-left: 3px solid var(--amber); }
+    .todo.due-today { border-left: 3px solid var(--blue); }
+    .check { width: 18px; height: 18px; min-width: 18px; border: 1.5px solid var(--border-hover); border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+    .check.checked { background: var(--text); border-color: var(--text); }
+    .check.checked::after { content: ''; width: 5px; height: 9px; border: 2px solid var(--bg); border-top: none; border-left: none; transform: rotate(45deg); margin-top: -2px; }
+    .todo-body { flex: 1; min-width: 0; }
+    .todo-title { font-size: 14px; font-weight: 500; }
+    .todo.done .todo-title { text-decoration: line-through; }
+    .todo-meta { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
+    .badge { font-size: 11px; padding: 2px 7px; border-radius: 10px; font-weight: 500; }
+    .b-red { background: var(--red-bg); color: var(--red); }
+    .b-blue { background: var(--blue-bg); color: var(--blue); }
+    .b-amber { background: var(--amber-bg); color: var(--amber); }
+    .b-green { background: var(--green-bg); color: var(--green); }
+    .b-purple { background: var(--purple-bg); color: var(--purple); }
+    .b-neutral { background: var(--border); color: var(--text-muted); }
+    .deadline-txt { font-size: 12px; color: var(--text-muted); }
+    .pdot { width: 7px; height: 7px; border-radius: 50%; min-width: 7px; }
+    .p-high { background: var(--red); }
+    .p-med { background: var(--amber); }
+    .p-low { background: var(--green); }
+    .todo-del { opacity: 0; background: none; border: 1px solid var(--border); border-radius: 5px; width: 26px; height: 26px; cursor: pointer; font-size: 14px; color: var(--text-muted); display: flex; align-items: center; justify-content: center; transition: opacity 0.15s; }
+    .todo:hover .todo-del { opacity: 1; }
+    .todo-del:hover { background: var(--red-bg); color: var(--red); border-color: var(--red); }
+    .empty { text-align: center; padding: 3rem 0; color: var(--text-muted); font-size: 14px; }
+    .loader { text-align: center; padding: 2rem 0; color: var(--text-muted); font-size: 13px; }
+
+    .notif-bar { background: var(--blue-bg); border: 1px solid #bfdbfe; border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 1rem; font-size: 13px; color: var(--blue); display: none; align-items: center; gap: 8px; }
+    .notif-bar span.close { margin-left: auto; cursor: pointer; font-size: 16px; }
+
+    @media (max-width: 500px) {
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .add-row { flex-direction: column; }
+      .add-field.grow { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- AUTH -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-title">My Tasks</div>
+    <div class="auth-sub">Sign in to sync across all your devices</div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="setAuthTab('login',this)">Sign in</button>
+      <button class="auth-tab" onclick="setAuthTab('signup',this)">Sign up</button>
+    </div>
+    <div class="field"><label>Email</label><input type="email" id="auth-email" placeholder="you@example.com" /></div>
+    <div class="field"><label>Password</label><input type="password" id="auth-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doAuth()" /></div>
+    <button class="btn-primary" onclick="doAuth()" id="auth-btn">Sign in</button>
+    <div class="auth-error" id="auth-error"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app-screen">
+  <div class="top-bar">
+    <div>
+      <div class="app-title">My Tasks</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:2px" id="date-label"></div>
+    </div>
+    <div class="top-right">
+      <span class="user-pill" id="user-pill"></span>
+      <button class="btn-sm" onclick="doSignOut()">Sign out</button>
+      <button class="btn-sm" id="notif-btn" onclick="requestNotifs()">🔔 Enable alerts</button>
+    </div>
+  </div>
+
+  <div id="notif-bar" class="notif-bar">
+    <span id="notif-msg"></span>
+    <span class="close" onclick="document.getElementById('notif-bar').style.display='none'">×</span>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-label">Active</div><div class="stat-val" id="s-total">—</div></div>
+    <div class="stat"><div class="stat-label">Due today</div><div class="stat-val amber" id="s-today">—</div></div>
+    <div class="stat"><div class="stat-label">Overdue</div><div class="stat-val red" id="s-overdue">—</div></div>
+    <div class="stat"><div class="stat-label">Spillovers</div><div class="stat-val amber" id="s-spill">—</div></div>
+  </div>
+
+  <div class="add-card">
+    <div class="add-row">
+      <div class="add-field grow"><label>Task</label><input type="text" id="t-title" placeholder="What needs doing?" /></div>
+      <div class="add-field"><label>Deadline</label><input type="datetime-local" id="t-deadline" /></div>
+      <div class="add-field"><label>Priority</label>
+        <select id="t-priority"><option value="med">Medium</option><option value="high">High</option><option value="low">Low</option></select>
+      </div>
+      <div class="add-field"><label>Category</label><input type="text" id="t-cat" placeholder="e.g. Work" style="width:110px" /></div>
+      <button class="btn-add" onclick="addTodo()" id="add-btn">Add</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="setTab('active',this)">Active</button>
+    <button class="tab" onclick="setTab('today',this)">Due today</button>
+    <button class="tab" onclick="setTab('overdue',this)">Overdue & spillovers</button>
+    <button class="tab" onclick="setTab('done',this)">Completed</button>
+    <button class="tab" onclick="setTab('all',this)">All</button>
+  </div>
+
+  <div id="list-container"><div class="loader">Loading tasks…</div></div>
+</div>
+
+<script>
+// ── CONFIG — fill these in after Supabase setup ──
+const SUPABASE_URL = 'https://kplzjmjiqdbzsdsoibnv.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwbHpqbWppcWRienNkc29pYm52Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4MzA0MDIsImV4cCI6MjA5MzQwNjQwMn0.tLV7EFuAmpGruTxbQ7QRiRTTyyXmQmIH54XGUt0BK54';
+// ─────────────────────────────────────────────────
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let todos = [];
+let currentTab = 'active';
+let currentUser = null;
+let authMode = 'login';
+
+// ── AUTH ──
+function setAuthTab(mode, el) {
+  authMode = mode;
+  document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('auth-btn').textContent = mode === 'login' ? 'Sign in' : 'Create account';
+  document.getElementById('auth-error').textContent = '';
+}
+
+async function doAuth() {
+  const email = document.getElementById('auth-email').value.trim();
+  const pass = document.getElementById('auth-pass').value;
+  const errEl = document.getElementById('auth-error');
+  errEl.textContent = '';
+  if (!email || !pass) { errEl.textContent = 'Email and password required.'; return; }
+  const btn = document.getElementById('auth-btn');
+  btn.disabled = true; btn.textContent = '…';
+  let result;
+  if (authMode === 'login') {
+    result = await sb.auth.signInWithPassword({ email, password: pass });
+  } else {
+    result = await sb.auth.signUp({ email, password: pass });
+  }
+  btn.disabled = false; btn.textContent = authMode === 'login' ? 'Sign in' : 'Create account';
+  if (result.error) { errEl.textContent = result.error.message; return; }
+  if (authMode === 'signup' && !result.data.session) {
+    errEl.style.color = 'var(--green)';
+    errEl.textContent = 'Check your email to confirm your account, then sign in.';
+  }
+}
+
+async function doSignOut() {
+  await sb.auth.signOut();
+  todos = [];
+  document.getElementById('app-screen').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'block';
+}
+
+sb.auth.onAuthStateChange((event, session) => {
+  if (session?.user) {
+    currentUser = session.user;
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('app-screen').style.display = 'block';
+    document.getElementById('user-pill').textContent = session.user.email;
+    document.getElementById('date-label').textContent = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+    loadTodos();
+    startRealtimeSync();
+  }
+});
+
+// ── DATA ──
+async function loadTodos() {
+  const { data, error } = await sb.from('todos').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false });
+  if (error) { console.error(error); return; }
+  todos = data.map(normalize);
+  render();
+}
+
+function normalize(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    deadline: row.deadline ? new Date(row.deadline).getTime() : null,
+    priority: row.priority || 'med',
+    category: row.category || '',
+    done: row.done || false,
+    created: new Date(row.created_at).getTime(),
+    completedAt: row.completed_at ? new Date(row.completed_at).getTime() : null,
+  };
+}
+
+function startRealtimeSync() {
+  sb.channel('todos-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'todos', filter: `user_id=eq.${currentUser.id}` }, () => loadTodos())
+    .subscribe();
+}
+
+async function addTodo() {
+  const title = document.getElementById('t-title').value.trim();
+  if (!title) return;
+  const dl = document.getElementById('t-deadline').value;
+  const btn = document.getElementById('add-btn');
+  btn.disabled = true;
+  const { error } = await sb.from('todos').insert({
+    user_id: currentUser.id,
+    title,
+    deadline: dl ? new Date(dl).toISOString() : null,
+    priority: document.getElementById('t-priority').value,
+    category: document.getElementById('t-cat').value.trim(),
+    done: false,
+  });
+  btn.disabled = false;
+  if (error) { alert('Error adding task: ' + error.message); return; }
+  document.getElementById('t-title').value = '';
+  document.getElementById('t-cat').value = '';
+}
+
+async function toggleDone(id) {
+  const t = todos.find(x => x.id === id);
+  if (!t) return;
+  const done = !t.done;
+  await sb.from('todos').update({ done, completed_at: done ? new Date().toISOString() : null }).eq('id', id);
+}
+
+async function deleteTodo(id) {
+  if (!confirm('Delete this task?')) return;
+  await sb.from('todos').delete().eq('id', id);
+}
+
+// ── TIME HELPERS ──
+const now = () => Date.now();
+const todayStart = () => { let d = new Date(); d.setHours(0,0,0,0); return d.getTime(); };
+const todayEnd = () => { let d = new Date(); d.setHours(23,59,59,999); return d.getTime(); };
+const isOverdue = t => t.deadline && t.deadline < now() && !t.done;
+const isToday = t => t.deadline && t.deadline >= todayStart() && t.deadline <= todayEnd() && !t.done;
+const isSoon = t => t.deadline && t.deadline > todayEnd() && t.deadline < todayEnd() + 86400000 * 3 && !t.done;
+const isSpillover = t => {
+  if (!t.deadline || t.done) return false;
+  const c = new Date(t.created); c.setHours(0,0,0,0);
+  const d = new Date(t.deadline); d.setHours(0,0,0,0);
+  return d > c && isOverdue(t);
+};
+
+function fmtDate(ts) {
+  if (!ts) return '';
+  const d = new Date(ts), diff = d - now();
+  if (Math.abs(diff) < 3600000) { const m = Math.round(diff/60000); return m === 0 ? 'due now' : m > 0 ? `in ${m}m` : `${Math.abs(m)}m ago`; }
+  if (Math.abs(diff) < 86400000) { const h = Math.round(diff/3600000); return h > 0 ? `in ${h}h` : `${Math.abs(h)}h ago`; }
+  const days = Math.round(diff/86400000);
+  const label = d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  return days > 0 ? `in ${days}d · ${label}` : `${Math.abs(days)}d ago · ${label}`;
+}
+
+// ── RENDER ──
+function setTab(tab, el) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  render();
+}
+
+function filtered() {
+  if (currentTab === 'active') return todos.filter(t => !t.done);
+  if (currentTab === 'today') return todos.filter(isToday);
+  if (currentTab === 'overdue') return todos.filter(t => (isOverdue(t) || isSpillover(t)) && !t.done);
+  if (currentTab === 'done') return todos.filter(t => t.done);
+  return todos;
+}
+
+function grouped(list) {
+  if (currentTab === 'overdue') return {
+    'Spillovers': list.filter(isSpillover),
+    'Overdue (same day)': list.filter(t => isOverdue(t) && !isSpillover(t)),
+  };
+  if (currentTab === 'active' || currentTab === 'all') {
+    const g = { 'Overdue': [], 'Due today': [], 'Due soon': [], 'Upcoming': [], 'No deadline': [], 'Completed': [] };
+    list.forEach(t => {
+      if (t.done) { g['Completed'].push(t); return; }
+      if (isOverdue(t)) { g['Overdue'].push(t); return; }
+      if (isToday(t)) { g['Due today'].push(t); return; }
+      if (isSoon(t)) { g['Due soon'].push(t); return; }
+      if (t.deadline) { g['Upcoming'].push(t); return; }
+      g['No deadline'].push(t);
+    });
+    return g;
+  }
+  return { 'Tasks': list };
+}
+
+function todoHTML(t) {
+  const spill = isSpillover(t);
+  let cls = 'todo';
+  if (t.done) cls += ' done';
+  else if (isOverdue(t)) cls += ' overdue';
+  else if (isToday(t)) cls += ' due-today';
+  if (spill) cls += ' spillover';
+  const pdot = `<span class="pdot p-${t.priority}" title="${t.priority} priority"></span>`;
+  let badge = '';
+  if (!t.done) {
+    if (isOverdue(t)) badge = `<span class="badge b-red">overdue</span>`;
+    else if (isToday(t)) badge = `<span class="badge b-blue">due today</span>`;
+    else if (isSoon(t)) badge = `<span class="badge b-amber">due soon</span>`;
+    else if (t.deadline) badge = `<span class="badge b-green">on track</span>`;
+  }
+  return `<div class="${cls}">
+    <div class="check ${t.done ? 'checked' : ''}" onclick="toggleDone('${t.id}')"></div>
+    <div class="todo-body">
+      <div class="todo-title">${escHtml(t.title)}</div>
+      <div class="todo-meta">
+        ${pdot}
+        ${t.category ? `<span class="badge b-neutral">${escHtml(t.category)}</span>` : ''}
+        ${t.deadline ? `<span class="deadline-txt">${fmtDate(t.deadline)}</span>` : ''}
+        ${badge}
+        ${spill ? `<span class="badge b-amber">spillover</span>` : ''}
+        ${t.priority === 'high' ? `<span class="badge b-purple">high priority</span>` : ''}
+      </div>
+    </div>
+    <button class="todo-del" onclick="deleteTodo('${t.id}')" title="Delete">×</button>
+  </div>`;
+}
+
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function render() {
+  const active = todos.filter(t => !t.done);
+  document.getElementById('s-total').textContent = active.length;
+  document.getElementById('s-today').textContent = active.filter(isToday).length;
+  document.getElementById('s-overdue').textContent = active.filter(isOverdue).length;
+  document.getElementById('s-spill').textContent = active.filter(isSpillover).length;
+
+  const list = filtered();
+  const groups = grouped(list);
+  let html = '';
+  let any = false;
+  for (const [label, items] of Object.entries(groups)) {
+    if (!items.length) continue;
+    any = true;
+    html += `<div class="section-label">${label} (${items.length})</div><div class="todo-list">`;
+    items.forEach(t => { html += todoHTML(t); });
+    html += '</div>';
+  }
+  if (!any) html = `<div class="empty">No tasks here — you're all clear!</div>`;
+  document.getElementById('list-container').innerHTML = html;
+}
+
+// ── NOTIFICATIONS ──
+function requestNotifs() {
+  if (!('Notification' in window)) { showBar('Notifications not supported in this browser.'); return; }
+  Notification.requestPermission().then(p => {
+    if (p === 'granted') {
+      showBar('Notifications enabled! You will be reminded before deadlines.');
+      document.getElementById('notif-btn').style.display = 'none';
+      todos.forEach(scheduleNotif);
+    } else {
+      showBar('Permission denied — enable notifications in your browser settings.');
+    }
+  });
+}
+
+function scheduleNotif(t) {
+  if (Notification.permission !== 'granted' || !t.deadline || t.done) return;
+  [t.deadline - 3600000, t.deadline - 900000, t.deadline].forEach(ts => {
+    const delay = ts - now();
+    if (delay > 0) setTimeout(() => {
+      if (Notification.permission === 'granted') {
+        const lbl = ts === t.deadline ? 'Due now' : ts === t.deadline - 900000 ? 'Due in 15 min' : 'Due in 1 hour';
+        new Notification(`${lbl}: ${t.title}`, { body: t.category || 'Personal task' });
+      }
+    }, delay);
+  });
+}
+
+function showBar(msg) {
+  document.getElementById('notif-msg').textContent = msg;
+  document.getElementById('notif-bar').style.display = 'flex';
+  setTimeout(() => { document.getElementById('notif-bar').style.display = 'none'; }, 5000);
+}
+
+if (Notification.permission === 'granted') document.getElementById('notif-btn').style.display = 'none';
+setInterval(render, 60000);
+</script>
+</body>
+</html>
